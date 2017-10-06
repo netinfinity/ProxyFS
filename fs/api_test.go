@@ -24,6 +24,7 @@ import (
 	"github.com/swiftstack/ProxyFS/ramswift"
 	"github.com/swiftstack/ProxyFS/stats"
 	"github.com/swiftstack/ProxyFS/swiftclient"
+	"github.com/swiftstack/ProxyFS/trackedlock"
 )
 
 // our global mountStruct to be used in tests
@@ -48,6 +49,10 @@ func testSetup() (err error) {
 		"Stats.BufferLength=100",
 		"Stats.MaxLatency=1s",
 		"Logging.LogFilePath=proxyfsd.log",
+
+		"TrackedLock.LockHoldTimeLimit=0s",
+		"TrackedLock.LockCheckPeriod=0s",
+
 		"SwiftClient.NoAuthTCPPort=45262",
 		"SwiftClient.Timeout=10s",
 		"SwiftClient.RetryLimit=5",
@@ -119,12 +124,18 @@ func testSetup() (err error) {
 
 	err = logger.Up(testConfMap)
 	if nil != err {
+		stats.Down()
 		return
 	}
 
 	err = evtlog.Up(testConfMap)
 	if nil != err {
 		logger.Down()
+		return
+	}
+
+	err = trackedlock.Up(testConfMap)
+	if nil != err {
 		return
 	}
 
@@ -138,6 +149,7 @@ func testSetup() (err error) {
 	err = dlm.Up(testConfMap)
 	if nil != err {
 		stats.Down()
+		trackedlock.Down()
 		evtlog.Down()
 		logger.Down()
 		return
@@ -147,6 +159,7 @@ func testSetup() (err error) {
 	if err != nil {
 		dlm.Down()
 		stats.Down()
+		trackedlock.Down()
 		evtlog.Down()
 		logger.Down()
 		return err
@@ -157,6 +170,7 @@ func testSetup() (err error) {
 		swiftclient.Down()
 		dlm.Down()
 		stats.Down()
+		trackedlock.Down()
 		evtlog.Down()
 		logger.Down()
 		return
@@ -167,6 +181,7 @@ func testSetup() (err error) {
 		swiftclient.Down()
 		dlm.Down()
 		stats.Down()
+		trackedlock.Down()
 		evtlog.Down()
 		logger.Down()
 		return
@@ -178,6 +193,7 @@ func testSetup() (err error) {
 		swiftclient.Down()
 		dlm.Down()
 		stats.Down()
+		trackedlock.Down()
 		evtlog.Down()
 		logger.Down()
 		return
@@ -190,6 +206,7 @@ func testSetup() (err error) {
 		swiftclient.Down()
 		dlm.Down()
 		stats.Down()
+		trackedlock.Down()
 		evtlog.Down()
 		logger.Down()
 		return
@@ -206,6 +223,7 @@ func testTeardown() (err error) {
 	swiftclient.Down()
 	dlm.Down()
 	stats.Down()
+	trackedlock.Down()
 	evtlog.Down()
 	logger.Down()
 
