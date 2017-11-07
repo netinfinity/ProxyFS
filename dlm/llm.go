@@ -23,6 +23,17 @@ type localLockTrack struct {
 	rwMutexTrack trackedlock.RWMutexTrack // Track the lock to see how long its held
 }
 
+var localLockTrackPool = sync.Pool{
+	New: func() interface{} {
+		var track localLockTrack
+
+		// every localLockTrack should have a waitReqQ
+		track.waitReqQ = list.New()
+
+		return &track
+	},
+}
+
 type localLockRequest struct {
 	requestedState lockState
 	*sync.Cond
@@ -230,9 +241,16 @@ func (l *RWLockStruct) commonLock(requestedState lockState, try bool) (err error
 	if !ok {
 		// TODO - handle blocking waiting for lock from DLM
 
-		// Lock does not exist in map, create one
-		track = &localLockTrack{lockId: l.LockID, state: stale}
-		track.waitReqQ = list.New()
+		// Lock does not exist in map, get one
+		track = localLockTrackPool.Get().(*localLockTrack)
+		if track.waitReqQ.Len() != 0 {
+			panic(fmt.Sprintf(
+				"localLockTrack object %p retrieved from pool does not have an empty waitReqQ",
+				track.waitReqQ))
+		}
+		track.lockId = l.LockID
+		track.state = stale
+
 		globals.localLockMap[l.LockID] = track
 
 	}
@@ -296,7 +314,9 @@ func (l *RWLockStruct) unlock() (err error) {
 	// We have track structure for lock.  While holding mutex on localLockMap, remove
 	// lock from map if we are the last holder of the lock.
 	// TODO - does this handle revoke case and any others?
+	var deleted = false
 	if (track.owners == 1) && (track.waiters == 0) {
+		deleted = true
 		delete(globals.localLockMap, l.LockID)
 	}
 
@@ -320,6 +340,16 @@ func (l *RWLockStruct) unlock() (err error) {
 	processLocalQ(track)
 
 	track.Mutex.Unlock()
+
+	// can't return the
+	if deleted {
+		if track.waitReqQ.Len() != 0 || track.waiters != 0 || track.state != stale {
+			panic(fmt.Sprintf(
+				"localLockTrack object %p retrieved from pool does not have an empty waitReqQ",
+				track.waitReqQ))
+		}
+		localLockTrackPool.Put(track)
+	}
 
 	// TODO what error is possible?
 	return nil
