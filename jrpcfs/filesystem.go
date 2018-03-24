@@ -92,6 +92,7 @@ type OpType int
 const (
 	PingOp OpType = iota
 	ReadOp
+	ReadPlanOp
 	WriteOp
 	FlushOp
 	LookupOp

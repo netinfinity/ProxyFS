@@ -11,6 +11,7 @@ const (
 	FileWrote                                   // uses operations, op bucketed bytes, and bytes stats
 	JrpcfsIoWrite                               // uses operations, op bucketed bytes, and bytes stats
 	JrpcfsIoRead                                // uses operations, op bucketed bytes, and bytes stats
+	JrpcfsIoReadPlan                            // uses operations, op bucketed bytes, and bytes stats
 	SwiftObjGet                                 // uses operations, op bucketed bytes, and bytes stats
 	SwiftObjLoad                                // uses operations, op bucketed bytes, and bytes stats
 	SwiftObjRead                                // uses operations, op bucketed bytes, and bytes stats

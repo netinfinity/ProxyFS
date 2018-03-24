@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/swiftstack/cstruct"
+
 	"github.com/swiftstack/ProxyFS/blunder"
 	"github.com/swiftstack/ProxyFS/dlm"
 	"github.com/swiftstack/ProxyFS/headhunter"
@@ -20,6 +22,8 @@ import (
 	"github.com/swiftstack/ProxyFS/stats"
 	"github.com/swiftstack/ProxyFS/utils"
 )
+
+var LittleEndian = cstruct.LittleEndian // All data cstructs to be serialized in LittleEndian form
 
 // Shorthand for our internal API debug log id; global to the package
 var internalDebug = logger.DbgInternal
@@ -2402,6 +2406,78 @@ func (mS *mountStruct) Read(userID inode.InodeUserID, groupID inode.InodeGroupID
 
 	stats.IncrementOperations(&stats.FsReadOps)
 	return buf, err
+}
+
+func (mS *mountStruct) ReadPlan(userID inode.InodeUserID, groupID inode.InodeGroupID, otherGroupIDs []inode.InodeGroupID, inodeNumber inode.InodeNumber, offset uint64, length uint64, profiler *utils.Profiler) (buf []byte, err error) {
+	mS.volStruct.jobRWMutex.RLock()
+	defer mS.volStruct.jobRWMutex.RUnlock()
+
+	inodeLock, err := mS.volStruct.initInodeLock(inodeNumber, nil)
+	if err != nil {
+		return
+	}
+	err = inodeLock.ReadLock()
+	if err != nil {
+		return
+	}
+	defer inodeLock.Unlock()
+
+	if !mS.volStruct.VolumeHandle.Access(inodeNumber, userID, groupID, otherGroupIDs, inode.F_OK,
+		inode.NoOverride) {
+		err = blunder.NewError(blunder.NotFoundError, "ENOENT")
+		return
+	}
+	if !mS.volStruct.VolumeHandle.Access(inodeNumber, userID, groupID, otherGroupIDs, inode.R_OK,
+		inode.OwnerOverride) {
+		err = blunder.NewError(blunder.PermDeniedError, "EACCES")
+		return
+	}
+
+	inodeType, err := mS.volStruct.VolumeHandle.GetType(inodeNumber)
+	if err != nil {
+		logger.ErrorfWithError(err, "couldn't get type for inode %v", inodeNumber)
+		return
+	}
+	// Make sure the inode number is for a file inode
+	if inodeType != inode.FileType {
+		err = fmt.Errorf("%s: expected inode %v to be a file inode, got %v", utils.GetFnName(), inodeNumber, inodeType)
+		logger.ErrorWithError(err)
+		return buf, blunder.AddError(err, blunder.NotFileError)
+	}
+
+	profiler.AddEventNow("before inode.ReadPlan()")
+	tmpReadEnt, err := mS.volStruct.VolumeHandle.GetReadPlan(inodeNumber, &offset, &length)
+	profiler.AddEventNow("after inode.ReadPlan()")
+
+	// Serialize the readplan to buffer.
+	// Format:
+	//   uint64 totalSize
+	//   uint64 recCount
+	//   for each recCount:
+	//        []byte objPath
+	//        uint64 offset
+	//        uint64 length
+
+	totalSize := uint64(0)
+	for _, val := range tmpReadEnt {
+		totalSize += val.Length
+	}
+
+	buf, _ = cstruct.Pack(totalSize, LittleEndian)
+	packedRecCount, _ := cstruct.Pack(uint64(len(tmpReadEnt)), LittleEndian)
+	buf = append(buf, packedRecCount...)
+
+	for _, val := range tmpReadEnt {
+		buf = append(buf, []byte(val.ObjectPath)...)
+		packedOffset, _ := cstruct.Pack(val.Offset, LittleEndian)
+		packedLength, _ := cstruct.Pack(val.Length, LittleEndian)
+
+		buf = append(buf, packedOffset...)
+		buf = append(buf, packedLength...)
+	}
+
+	stats.IncrementOperations(&stats.FsReadOps)
+	return
 }
 
 func (mS *mountStruct) Readdir(userID inode.InodeUserID, groupID inode.InodeGroupID, otherGroupIDs []inode.InodeGroupID, inodeNumber inode.InodeNumber, prevBasenameReturned string, maxEntries uint64, maxBufSize uint64) (entries []inode.DirEntry, numEntries uint64, areMoreEntries bool, err error) {

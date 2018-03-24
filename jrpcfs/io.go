@@ -197,13 +197,14 @@ func getRequest(conn net.Conn, ctx *ioContext) (err error) {
 		logger.Infof("Got %v bytes, request: %+v", bytesRead, ctx.req)
 	}
 
-	if ctx.req.opType == 1001 {
-		// Write op
+	switch ctx.req.opType {
+	case 1001:
 		ctx.op = WriteOp
-	} else if ctx.req.opType == 1002 {
-		// Read op
+	case 1002:
 		ctx.op = ReadOp
-	} else {
+	case 1003:
+		ctx.op = ReadPlanOp
+	default:
 		return fmt.Errorf("getRequest: unsupported op %v!", ctx.req.opType)
 	}
 
@@ -252,7 +253,7 @@ func putResponse(conn net.Conn, ctx *ioContext) (err error) {
 		respBytes []byte
 	)
 
-	if (ctx.op != ReadOp) && (ctx.op != WriteOp) {
+	if (ctx.op != ReadOp) && (ctx.op != WriteOp) && (ctx.op != ReadPlanOp) {
 		// We only support read and write
 		return fmt.Errorf("putResponse: unsupported opType %v", ctx.op)
 	}
@@ -270,7 +271,7 @@ func putResponse(conn net.Conn, ctx *ioContext) (err error) {
 	}
 
 	// If (non-zero length) Read Payload, send it as well
-	if (ctx.op == ReadOp) && (len(ctx.data) > 0) {
+	if (ctx.op == ReadOp || ctx.op == ReadPlanOp) && (len(ctx.data) > 0) {
 		err = putResponseWrite(conn, ctx.data)
 		if nil != err {
 			logger.Infof("putResponse() failed to send ctx.data: %v", err)
@@ -439,6 +440,23 @@ func ioHandle(conn net.Conn) {
 
 			if globals.dataPathLogging || printDebugLogs {
 				logger.Tracef("<< ioRead errno:%v out.Buf.size:%v out.Buf.<buffer not printed>", ctx.resp.errno, len(ctx.data))
+			}
+
+		case ReadPlanOp:
+			if globals.dataPathLogging || printDebugLogs {
+				logger.Tracef(">> ioReadPlan in.{InodeHandle:{MountID:%v InodeNumber:%v} Offset:%v Length:%v}", ctx.req.mountID, ctx.req.inodeID, ctx.req.offset, ctx.req.length)
+			}
+
+			profiler.AddEventNow("before fs.ReadPlan()")
+			mountHandle, err = lookupMountHandle(ctx.req.mountID)
+			if err == nil {
+				ctx.data, err = mountHandle.ReadPlan(inode.InodeRootUserID, inode.InodeGroupID(0), nil, inode.InodeNumber(ctx.req.inodeID), ctx.req.offset, ctx.req.length, profiler)
+			}
+			profiler.AddEventNow("after fs.ReadPlan()")
+
+			stats.IncrementOperationsAndBucketedBytes(stats.JrpcfsIoReadPlan, ctx.resp.ioSize)
+			if globals.dataPathLogging || printDebugLogs {
+				logger.Tracef("<< ioReadPlan errno:%v out.Buf.size:%v out.Buf.<buffer not printed>", ctx.resp.errno, len(ctx.data))
 			}
 
 		default:
