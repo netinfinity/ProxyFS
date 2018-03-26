@@ -77,16 +77,16 @@ func ioServerDown() {
 var debugConcurrency = false
 
 var concWorkerLock sync.Mutex
-var numConcWorkers int = 0 // number of concurrent workers
-var hwmConcWorkers int = 0 // high water mark of concurrent workers
+var numConcWorkers int // number of concurrent workers
+var hwmConcWorkers int // high water mark of concurrent workers
 
-var timesIncWorkers int = 0
-var timesDecWorkers int = 0
-var timesLevelEntered []int = make([]int, 128)
-var timesLevelExited []int = make([]int, 128)
+var timesIncWorkers int
+var timesDecWorkers int
+var timesLevelEntered = make([]int, 128)
+var timesLevelExited = make([]int, 128)
 
-var concDuration []time.Duration = make([]time.Duration, 128)
-var concStopwatch []utils.Stopwatch = make([]utils.Stopwatch, 128)
+var concDuration = make([]time.Duration, 128)
+var concStopwatch = make([]utils.Stopwatch, 128)
 
 func enterWorkerLevel(level int) {
 	timesLevelEntered[level]++
@@ -152,7 +152,7 @@ func dumpRunningWorkers() {
 		return
 	}
 
-	var totalTimeMs int64 = 0
+	var totalTimeMs int64
 
 	fmt.Printf("running workers: %d, max running workers: %d\n", numConcWorkers, hwmConcWorkers)
 
@@ -175,8 +175,8 @@ func dumpRunningWorkers() {
 }
 
 // Variable to control debug output
-var printDebugLogs bool = false
-var debugPutGet bool = false
+var printDebugLogs = false
+var debugPutGet = false
 
 func getRequest(conn net.Conn, ctx *ioContext) (err error) {
 	// "cast" request to bytes before reading into it
@@ -205,7 +205,7 @@ func getRequest(conn net.Conn, ctx *ioContext) (err error) {
 	case 1003:
 		ctx.op = ReadPlanOp
 	default:
-		return fmt.Errorf("getRequest: unsupported op %v!", ctx.req.opType)
+		return fmt.Errorf("getRequest: unsupported op %v", ctx.req.opType)
 	}
 
 	// For writes, get write data
@@ -273,7 +273,7 @@ func putResponse(conn net.Conn, ctx *ioContext) (err error) {
 	// If (non-zero length) Read Payload, send it as well
 	if (ctx.op == ReadOp || ctx.op == ReadPlanOp) && (len(ctx.data) > 0) {
 		err = putResponseWrite(conn, ctx.data)
-		if nil != err {
+		if err != nil {
 			logger.Infof("putResponse() failed to send ctx.data: %v", err)
 			return
 		}
@@ -454,7 +454,10 @@ func ioHandle(conn net.Conn) {
 			}
 			profiler.AddEventNow("after fs.ReadPlan()")
 
-			stats.IncrementOperationsAndBucketedBytes(stats.JrpcfsIoReadPlan, ctx.resp.ioSize)
+			// Set io size in response
+			ctx.resp.ioSize = uint64(len(ctx.data))
+
+			stats.IncrementOperationsAndBucketedBytes(stats.JrpcfsIoRead, ctx.resp.ioSize)
 			if globals.dataPathLogging || printDebugLogs {
 				logger.Tracef("<< ioReadPlan errno:%v out.Buf.size:%v out.Buf.<buffer not printed>", ctx.resp.errno, len(ctx.data))
 			}
@@ -466,7 +469,6 @@ func ioHandle(conn net.Conn) {
 			return
 		}
 
-		// Set error in context
 		ctx.resp.errno = uint64(blunder.Errno(err))
 
 		// Write response
