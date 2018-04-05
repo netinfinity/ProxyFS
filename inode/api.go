@@ -170,7 +170,7 @@ type VolumeHandle interface {
 
 	CreateFile(filePerm InodeMode, userID InodeUserID, groupID InodeGroupID) (fileInodeNumber InodeNumber, err error)
 	Read(inodeNumber InodeNumber, offset uint64, length uint64, profiler *utils.Profiler) (buf []byte, err error)
-	GetReadPlan(fileInodeNumber InodeNumber, offset *uint64, length *uint64) (readPlan []ReadPlanStep, err error)
+	GetReadPlan(fileInodeNumber InodeNumber, offset *uint64, length *uint64) (readPlan []ReadPlanStep, readPlanBytes uint64, err error)
 	Write(fileInodeNumber InodeNumber, offset uint64, buf []byte, profiler *utils.Profiler) (err error)
 	ProvisionObject() (objectPath string, err error)
 	Wrote(fileInodeNumber InodeNumber, fileOffset uint64, objectPath string, objectOffset uint64, length uint64, patchOnly bool) (err error)

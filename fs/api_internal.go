@@ -1686,7 +1686,7 @@ func (mS *mountStruct) MiddlewareGetObject(volumeName string, containerObjectPat
 			return
 		}
 		var offset uint64 = 0
-		tmpReadEnt, err1 := volumeHandle.GetReadPlan(inodeNumber, &offset, &metadata.Size)
+		tmpReadEnt, _, err1 := volumeHandle.GetReadPlan(inodeNumber, &offset, &metadata.Size)
 		if err1 != nil {
 			err = err1
 			return
@@ -1703,7 +1703,7 @@ func (mS *mountStruct) MiddlewareGetObject(volumeName string, containerObjectPat
 		// Get ReadPlan for each range and append physical path ranges to result
 		for i := range readRangeIn {
 			// TODO - verify that range request is within file size
-			tmpReadEnt, err1 := volumeHandle.GetReadPlan(inodeNumber, readRangeIn[i].Offset, readRangeIn[i].Len)
+			tmpReadEnt, _, err1 := volumeHandle.GetReadPlan(inodeNumber, readRangeIn[i].Offset, readRangeIn[i].Len)
 			if err1 != nil {
 				err = err1
 				return
@@ -2445,12 +2445,23 @@ func (mS *mountStruct) ReadPlan(userID inode.InodeUserID, groupID inode.InodeGro
 		return buf, blunder.AddError(err, blunder.NotFileError)
 	}
 
+	metadata, _ := mS.volStruct.VolumeHandle.GetMetadata(inodeNumber)
+	fileSize := metadata.Size
+
 	profiler.AddEventNow("before inode.ReadPlan()")
-	tmpReadEnt, err := mS.volStruct.VolumeHandle.GetReadPlan(inodeNumber, &offset, &length)
+	var tmpReadEnt []inode.ReadPlanStep
+	var totalSize uint64
+
+	if length == 0 {
+		tmpReadEnt, totalSize, err = mS.volStruct.VolumeHandle.GetReadPlan(inodeNumber, &offset, nil)
+	} else {
+		tmpReadEnt, totalSize, err = mS.volStruct.VolumeHandle.GetReadPlan(inodeNumber, &offset, &length)
+	}
 	profiler.AddEventNow("after inode.ReadPlan()")
 
 	// Serialize the readplan to buffer.
 	// Format:
+	//   uint64 fileSize
 	//   uint64 totalSize
 	//   uint64 recCount
 	//   for each recCount:
@@ -2458,12 +2469,11 @@ func (mS *mountStruct) ReadPlan(userID inode.InodeUserID, groupID inode.InodeGro
 	//        uint64 offset
 	//        uint64 length
 
-	totalSize := uint64(0)
-	for _, val := range tmpReadEnt {
-		totalSize += val.Length
-	}
+	buf, _ = cstruct.Pack(fileSize, LittleEndian)
 
-	buf, _ = cstruct.Pack(totalSize, LittleEndian)
+	packedTotalSize, _ := cstruct.Pack(totalSize, LittleEndian)
+	buf = append(buf, packedTotalSize...)
+
 	packedRecCount, _ := cstruct.Pack(uint64(len(tmpReadEnt)), LittleEndian)
 	buf = append(buf, packedRecCount...)
 

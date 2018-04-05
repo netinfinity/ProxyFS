@@ -192,10 +192,7 @@ func (vS *volumeStruct) Read(fileInodeNumber InodeNumber, offset uint64, length 
 	return
 }
 
-func (vS *volumeStruct) GetReadPlan(fileInodeNumber InodeNumber, offset *uint64, length *uint64) (readPlan []ReadPlanStep, err error) {
-	var (
-		readPlanBytes uint64
-	)
+func (vS *volumeStruct) GetReadPlan(fileInodeNumber InodeNumber, offset *uint64, length *uint64) (readPlan []ReadPlanStep, readPlanBytes uint64, err error) {
 
 	fileInode, err := vS.fetchInodeType(fileInodeNumber, FileType)
 	if nil != err {
@@ -843,7 +840,7 @@ func (vS *volumeStruct) Coalesce(containingDirInodeNumber InodeNumber, combinati
 		length := inodeStruct.Size
 		// NB: we rely on the fact that GetReadPlan causes a flush of any pending writes to disk. This lets us steal log
 		// segments without concerning ourselves with stealing data from the write-back cache as well.
-		readPlanSteps, err1 := vS.GetReadPlan(inodeStruct.InodeNumber, &offset, &length)
+		readPlanSteps, _, err1 := vS.GetReadPlan(inodeStruct.InodeNumber, &offset, &length)
 		if err1 != nil {
 			err = err1
 			return
