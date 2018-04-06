@@ -107,7 +107,7 @@ func TestValidateFileExtents(t *testing.T) {
 
 	// let's get a read plan and then sneakily sabotage the log segments
 	var zero uint64
-	readPlan, err := testVolumeHandle.GetReadPlan(fileInodeNumber, &zero, nil)
+	readPlan, _, err := testVolumeHandle.GetReadPlan(fileInodeNumber, &zero, nil)
 	if err != nil {
 		t.Fatalf("failed to get read plan for inode %v", fileInodeNumber)
 	}

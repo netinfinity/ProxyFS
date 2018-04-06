@@ -1239,7 +1239,7 @@ func TestAPI(t *testing.T) {
 
 	offset := uint64(0)
 	length := uint64(5)
-	testReadPlan, err := testVolumeHandle.GetReadPlan(fileInodeNumber, &offset, &length)
+	testReadPlan, _, err := testVolumeHandle.GetReadPlan(fileInodeNumber, &offset, &length)
 	if nil != err {
 		t.Fatalf("GetReadPlan(fileInodeNumber, 0, 5) failed: %v", err)
 	}
@@ -1252,7 +1252,7 @@ func TestAPI(t *testing.T) {
 
 	// Suffix byte range query, like "Range: bytes=-2"
 	length = uint64(3)
-	testSuffixReadPlan, err := testVolumeHandle.GetReadPlan(fileInodeNumber, nil, &length)
+	testSuffixReadPlan, _, err := testVolumeHandle.GetReadPlan(fileInodeNumber, nil, &length)
 	if nil != err {
 		t.Fatalf("GetReadPlan(fileInodeNumber, nil, 3) failed: %v", err)
 	}
@@ -1271,7 +1271,7 @@ func TestAPI(t *testing.T) {
 
 	// Long suffix byte range query, like "Range: bytes=-200" (for a file of size < 200)
 	length = uint64(10) // our file has only 5 bytes
-	testSuffixReadPlan, err = testVolumeHandle.GetReadPlan(fileInodeNumber, nil, &length)
+	testSuffixReadPlan, _, err = testVolumeHandle.GetReadPlan(fileInodeNumber, nil, &length)
 	if nil != err {
 		t.Fatalf("GetReadPlan(fileInodeNumber, nil, 10) failed: %v", err)
 	}
@@ -1290,7 +1290,7 @@ func TestAPI(t *testing.T) {
 
 	// Prefix byte range query, like "Range: bytes=4-"
 	offset = uint64(3)
-	testPrefixReadPlan, err := testVolumeHandle.GetReadPlan(fileInodeNumber, &offset, nil)
+	testPrefixReadPlan, _, err := testVolumeHandle.GetReadPlan(fileInodeNumber, &offset, nil)
 	if nil != err {
 		t.Fatalf("GetReadPlan(fileInodeNumber, 3, nil) failed: %v", err)
 	}

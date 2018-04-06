@@ -108,7 +108,7 @@ func readCacheBenchmarkHelper(b *testing.B, byteSize uint64) {
 	testVolumeHandle.Flush(fileInodeNumber, false)
 	var zero uint64
 	zero = 0
-	readPlan, _ := testVolumeHandle.GetReadPlan(fileInodeNumber, &zero, &byteSize)
+	readPlan, _, _ := testVolumeHandle.GetReadPlan(fileInodeNumber, &zero, &byteSize)
 	testVolumeHandle.Read(fileInodeNumber, 0, byteSize, nil)
 	// at this point, the read cache should be populated
 

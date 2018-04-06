@@ -409,7 +409,7 @@ func testVerifyFileInodeContents(t *testing.T, testVolumeHandle VolumeHandle, fi
 			t.Fatalf("Read(fileInodeNumber, offset, length) [case 4] returned unexpected []byte:\n  expected %v\n       got %v", testCondenseByteSlice(inMemoryFileInodeContents[offset:(offset+length)]), testCondenseByteSlice(readBuf))
 		}
 
-		readPlan, err := testVolumeHandle.GetReadPlan(fileInodeNumber, &offset, &length)
+		readPlan, _, err := testVolumeHandle.GetReadPlan(fileInodeNumber, &offset, &length)
 		if nil != err {
 			t.Fatalf("GetReadPlan(fileInodeNumber, offset, length) [case 4] failed: %v", err)
 		}
@@ -435,7 +435,7 @@ func testVerifyFileInodeContents(t *testing.T, testVolumeHandle VolumeHandle, fi
 			t.Fatalf("Read(fileInodeNumber, offset, length) [case 5] returned unexpected []byte:\n  expected %v\n       got %v", testCondenseByteSlice(inMemoryFileInodeContents[offset:(offset+length)]), testCondenseByteSlice(readBuf))
 		}
 
-		readPlan, err := testVolumeHandle.GetReadPlan(fileInodeNumber, &offset, &length)
+		readPlan, _, err := testVolumeHandle.GetReadPlan(fileInodeNumber, &offset, &length)
 		if nil != err {
 			t.Fatalf("GetReadPlan(fileInodeNumber, offset, length) [case 5] failed: %v", err)
 		}
