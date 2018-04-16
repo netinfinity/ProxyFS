@@ -204,6 +204,8 @@ func getRequest(conn net.Conn, ctx *ioContext) (err error) {
 		ctx.op = ReadOp
 	case 1003:
 		ctx.op = ReadPlanOp
+	case 1004:
+		ctx.op = LeaseOp
 	default:
 		return fmt.Errorf("getRequest: unsupported op %v", ctx.req.opType)
 	}
@@ -461,6 +463,31 @@ func ioHandle(conn net.Conn) {
 			if globals.dataPathLogging || printDebugLogs {
 				logger.Tracef("<< ioReadPlan errno:%v out.Buf.size:%v out.Buf.<buffer not printed>", ctx.resp.errno, len(ctx.data))
 			}
+
+		case LeaseOp:
+			logger.Infof(">>>>>>>>In LeaseOpen!!!!<<<<<<<<<<<: %+v", ctx.req)
+			// TODO - record socket callback for which mount point, etc and
+			// return.   We only write response on socket when we want a release/revoke of lease.
+			/*
+				if globals.dataPathLogging || printDebugLogs {
+					logger.Tracef(">> ioReadPlan in.{InodeHandle:{MountID:%v InodeNumber:%v} Offset:%v Length:%v}", ctx.req.mountID, ctx.req.inodeID, ctx.req.offset, ctx.req.length)
+				}
+
+				profiler.AddEventNow("before fs.ReadPlan()")
+				mountHandle, err = lookupMountHandle(ctx.req.mountID)
+				if err == nil {
+					ctx.data, err = mountHandle.ReadPlan(inode.InodeRootUserID, inode.InodeGroupID(0), nil, inode.InodeNumber(ctx.req.inodeID), ctx.req.offset, ctx.req.length, profiler)
+				}
+				profiler.AddEventNow("after fs.ReadPlan()")
+
+				// Set io size in response
+				ctx.resp.ioSize = uint64(len(ctx.data))
+
+				stats.IncrementOperationsAndBucketedBytes(stats.JrpcfsIoRead, ctx.resp.ioSize)
+				if globals.dataPathLogging || printDebugLogs {
+					logger.Tracef("<< ioReadPlan errno:%v out.Buf.size:%v out.Buf.<buffer not printed>", ctx.resp.errno, len(ctx.data))
+				}
+			*/
 
 		default:
 			// Hmmm, this should have been caught by getRequest...

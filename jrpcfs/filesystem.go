@@ -95,6 +95,7 @@ const (
 	ReadPlanOp
 	WriteOp
 	FlushOp
+	LeaseOp
 	LookupOp
 	LookupPathOp
 	GetStatOp
