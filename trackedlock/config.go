@@ -33,6 +33,9 @@ func parseConfMap(confMap conf.ConfMap) (err error) {
 		globals.lockCheckPeriod = time.Duration(20 * time.Second)
 	}
 
+	// log information upto 8 locks
+	globals.lockWatcherLocksLogged = 8
+
 	err = nil
 	return
 }

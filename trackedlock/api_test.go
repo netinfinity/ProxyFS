@@ -32,18 +32,28 @@ var (
 		"Stats.MaxLatency=1s",
 	}
 
-	// matches: "trackedlock watcher: *trackedlock.Mutex at 0xc420110000 locked for 2 sec; stack at Lock() call:\ngoroutine 19 [running]:..."
-	watcherLogMatch = `^trackedlock watcher: (?P<type>[*a-zA-Z0-9_.]+) at (?P<ptr>0x[0-9a-f]+) locked for (?P<time>\d+) sec; stack at (?P<locker>[a-zA-Z0-9_()]+) call:\\n(?P<lockStack>.*)$`
+	// matches: "trackedlock watcher: *trackedlock.Mutex at 0xc420110000 locked for 2.003s sec rank 0; stack at call to Lock():\ngoroutine 19 [running]:..."
+	// that is it only matches the entry for rank 0 (the longest held lock)
+	//
+	watcherRank0LogMatch = `^trackedlock watcher: (?P<type>[*a-zA-Z0-9_.]+) at (?P<ptr>0x[0-9a-f]+) locked for (?P<time>[0-9.]+) sec rank 0; stack at call to (?P<locker>[a-zA-Z0-9_()]+):\\n(?P<lockStack>.*)$`
+	watcherRank1LogMatch = `^trackedlock watcher: (?P<type>[*a-zA-Z0-9_.]+) at (?P<ptr>0x[0-9a-f]+) locked for (?P<time>[0-9.]+) sec rank 1; stack at call to (?P<locker>[a-zA-Z0-9_()]+):\\n(?P<lockStack>.*)$`
+	watcherRank2LogMatch = `^trackedlock watcher: (?P<type>[*a-zA-Z0-9_.]+) at (?P<ptr>0x[0-9a-f]+) locked for (?P<time>[0-9.]+) sec rank 2; stack at call to (?P<locker>[a-zA-Z0-9_()]+):\\n(?P<lockStack>.*)$`
+	watcherRank3LogMatch = `^trackedlock watcher: (?P<type>[*a-zA-Z0-9_.]+) at (?P<ptr>0x[0-9a-f]+) locked for (?P<time>[0-9.]+) sec rank 3; stack at call to (?P<locker>[a-zA-Z0-9_()]+):\\n(?P<lockStack>.*)$`
 
-	// matches: "Unlock(): *trackedlock.Mutex at 0xc420110000 locked for 3 sec; stack at Lock() call:\ngoroutine 19 [running]:\n...\n stack at Unlock():\ngoroutine 19 [running]:\n..."
-	unlockLogMatch = `^Unlock\(\): (?P<type>[*a-zA-Z0-9_.]+) at (?P<ptr>0x[0-9a-f]+) locked for (?P<time>\d+) sec; stack at (?P<locker>[a-zA-Z0-9_()]+) call:\\n(?P<lockStack>.*) stack at Unlock\(\):\\n(?P<unlockStack>.*)$`
+	// matches: "Unlock(): *trackedlock.Mutex at 0xc420110000 locked for 3.003 sec; stack at call to Lock():\ngoroutine 19 [running]:\n...\n stack at Unlock():\ngoroutine 19 [running]:\n..."
+	//
+	unlockLogMatch = `^Unlock\(\): (?P<type>[*a-zA-Z0-9_.]+) at (?P<ptr>0x[0-9a-f]+) locked for (?P<time>[0-9.]+) sec; stack at call to (?P<locker>[a-zA-Z0-9_()]+):\\n(?P<lockStack>.*) stack at Unlock\(\):\\n(?P<unlockStack>.*)$`
 
-	// matches: "RUnlock(): *trackedlock.RWMutex at 0xc420100000 locked for 5 sec; stack at RLock() call:\ngoroutine 5 [running]:\n...\n stack at RUnlock():\ngoroutine 5 [running]:\n..."
-	rUnlockLogMatch = `^RUnlock\(\): (?P<type>[*a-zA-Z0-9_.]+) at (?P<ptr>0x[0-9a-f]+) locked for (?P<time>\d+) sec; stack at (?P<locker>[a-zA-Z0-9_()]+) call:\\n(?P<lockStack>.*) stack at RUnlock\(\):\\n(?P<unlockStack>.*)$`
+	// matches: "RUnlock(): *trackedlock.RWMutex at 0xc420100000 locked for 5.000001 sec; stack at call to RLock():\ngoroutine 5 [running]:\n...\n stack at RUnlock():\ngoroutine 5 [running]:\n..."
+	//
+	rUnlockLogMatch = `^RUnlock\(\): (?P<type>[*a-zA-Z0-9_.]+) at (?P<ptr>0x[0-9a-f]+) locked for (?P<time>[0-9.]+) sec; stack at call to (?P<locker>[a-zA-Z0-9_()]+):\\n(?P<lockStack>.*) stack at RUnlock\(\):\\n(?P<unlockStack>.*)$`
 
-	watcherLogRE = regexp.MustCompile(watcherLogMatch)
-	unlockLogRE  = regexp.MustCompile(unlockLogMatch)
-	rUnlockLogRE = regexp.MustCompile(rUnlockLogMatch)
+	watcherRank0LogRE = regexp.MustCompile(watcherRank0LogMatch)
+	watcherRank1LogRE = regexp.MustCompile(watcherRank1LogMatch)
+	watcherRank2LogRE = regexp.MustCompile(watcherRank2LogMatch)
+	watcherRank3LogRE = regexp.MustCompile(watcherRank3LogMatch)
+	unlockLogRE       = regexp.MustCompile(unlockLogMatch)
+	rUnlockLogRE      = regexp.MustCompile(rUnlockLogMatch)
 )
 
 // sleep for the requested number of seconds
@@ -119,8 +129,8 @@ func testMutexes(t *testing.T, logcopy logger.LogTarget, confMap conf.ConfMap) {
 	testMutex1.Unlock()
 
 	// lock several locks for more than 3 sec; lock watcher should report
-	// the one held the longest. (the final sleep is 2.7 sec because the max
-	// hold time is 2 sec and the watcher runs every 1 sec.  3.0 sec is
+	// the one held the longest (the final sleep is 2.7 sec because the max
+	// hold time is 2 sec and the watcher runs every 1 sec).  3.0 sec is
 	// needed to insure that watcher has a chance to see the first lock but
 	// add an extra 0.1 sec to it has run and its output is visible.
 	testMutex1.Lock()
@@ -134,19 +144,66 @@ func testMutexes(t *testing.T, logcopy logger.LogTarget, confMap conf.ConfMap) {
 	testMutex3.Lock()
 	sleep(2.7)
 
+	/*
+	 * Verify that lock watcher identifies the locks that have been held too long
+	 * and sorts them correctly.
+	 */
+
 	// lockwatcher should have identified testMutex1 as the longest held mutex
-	fields, _, err := logger.ParseLogForFunc(logcopy, "lockWatcher", watcherLogRE, 3)
+	fields, _, err := logger.ParseLogForFunc(logcopy, "lockWatcher", watcherRank0LogRE, 10)
 	if err != nil {
 		t.Errorf("testMutex: could not find log entry for lockWatcher for testMutex1: %s", err.Error())
 	}
-
 	ptr, _ := strconv.ParseUint(fields["ptr"], 0, 64)
 	if uintptr(ptr) != uintptr(unsafe.Pointer(&testMutex1)) {
-		t.Errorf("testMutex: testMutex1 is not the longest held Mutex")
+		t.Errorf("testMutex: testMutex1 at %p is not the longest held Mutex", &testMutex1)
 	}
 	if fields["type"] != "*trackedlock.Mutex" {
 		t.Errorf("testMutex: testMutex1 type reported as '%s' instead of '*trackedlock.Mutex'", fields["type"])
 	}
+
+	// lockwatcher should have identified testMutex2 as the second longest held mutex
+	fields, _, err = logger.ParseLogForFunc(logcopy, "lockWatcher", watcherRank1LogRE, 10)
+	if err != nil {
+		t.Errorf("testMutex: could not find log entry for lockWatcher for testMutex2: %s", err.Error())
+	}
+	ptr, _ = strconv.ParseUint(fields["ptr"], 0, 64)
+	if uintptr(ptr) != uintptr(unsafe.Pointer(&testMutex2)) {
+		t.Errorf("testMutex: testMutex2 at %p is not the longest held Mutex", &testMutex2)
+	}
+	if fields["type"] != "*trackedlock.Mutex" {
+		t.Errorf("testMutex: testMutex2 type reported as '%s' instead of '*trackedlock.Mutex'", fields["type"])
+	}
+
+	// lockwatcher should have identified testRWMutex1 as the third longest held mutex
+	fields, _, err = logger.ParseLogForFunc(logcopy, "lockWatcher", watcherRank2LogRE, 10)
+	if err != nil {
+		t.Errorf("testMutex: could not find log entry for lockWatcher for testRWMutex1: %s", err.Error())
+	}
+	ptr, _ = strconv.ParseUint(fields["ptr"], 0, 64)
+	if uintptr(ptr) != uintptr(unsafe.Pointer(&testRWMutex1)) {
+		t.Errorf("testMutex: testRWMutex1 at %p is not the longest held Mutex", &testRWMutex1)
+	}
+	if fields["type"] != "*trackedlock.RWMutex" {
+		t.Errorf("testMutex: testRWMutex1 type reported as '%s' instead of '*trackedlock.RWMutex'", fields["type"])
+	}
+
+	// lockwatcher should have identified testRWMutex2 as the third longest held mutex
+	fields, _, err = logger.ParseLogForFunc(logcopy, "lockWatcher", watcherRank3LogRE, 10)
+	if err != nil {
+		t.Errorf("testMutex: could not find log entry for lockWatcher for testRWMutex2: %s", err.Error())
+	}
+	ptr, _ = strconv.ParseUint(fields["ptr"], 0, 64)
+	if uintptr(ptr) != uintptr(unsafe.Pointer(&testRWMutex2)) {
+		t.Errorf("testMutex: testRWMutex2 at %p is not the longest held Mutex", &testRWMutex2)
+	}
+	if fields["type"] != "*trackedlock.RWMutex" {
+		t.Errorf("testMutex: testRWMutex2 type reported as '%s' instead of '*trackedlock.RWMutex'", fields["type"])
+	}
+
+	/*
+	 * Verify that releasing locks changes lockWatcher() results
+	 */
 
 	// release testMutex1 and look for the unlock message
 	testMutex1.Unlock()
@@ -158,7 +215,7 @@ func testMutexes(t *testing.T, logcopy logger.LogTarget, confMap conf.ConfMap) {
 
 	ptr, _ = strconv.ParseUint(fields["ptr"], 0, 64)
 	if uintptr(ptr) != uintptr(unsafe.Pointer(&testMutex1)) {
-		t.Errorf("testMutex: testMutex1 was not the mutex unlocked")
+		t.Errorf("testMutex: testMutex1 at %p was not the mutex unlocked", &testMutex1)
 	}
 	if fields["type"] != "*trackedlock.Mutex" {
 		t.Errorf("testMutex: testMutex1 type reported as '%s' instead of '*trackedlock.Mutex'", fields["type"])
@@ -167,14 +224,15 @@ func testMutexes(t *testing.T, logcopy logger.LogTarget, confMap conf.ConfMap) {
 	// after releasing testsMutex1 and waiting for the lockwatcher, it
 	// should now identify testMutex2 as the longest held mutex
 	sleep(1)
-	fields, _, err = logger.ParseLogForFunc(logcopy, "lockWatcher", watcherLogRE, 3)
+	fields, _, err = logger.ParseLogForFunc(logcopy, "lockWatcher", watcherRank0LogRE, 10)
 	if err != nil {
-		t.Errorf("testMutex: could not find log entry for lockWatcher for testMutex2: %s", err.Error())
+		t.Errorf("testMutex: could not find log entry for lockWatcher for testMutex2 at %p: %s",
+			&testMutex2, err.Error())
 	}
 
 	ptr, _ = strconv.ParseUint(fields["ptr"], 0, 64)
 	if uintptr(ptr) != uintptr(unsafe.Pointer(&testMutex2)) {
-		t.Errorf("testMutex: testMutex2 is not the longest held Mutex")
+		t.Errorf("testMutex: testMutex2 at %p is not the longest held Mutex", &testMutex2)
 	}
 	if fields["type"] != "*trackedlock.Mutex" {
 		t.Errorf("testMutex: testMutex2 type reported as '%s' instead of '*trackedlock.Mutex'", fields["type"])
@@ -184,14 +242,14 @@ func testMutexes(t *testing.T, logcopy logger.LogTarget, confMap conf.ConfMap) {
 	// RWMutex (in shared mode)
 	testMutex2.Unlock()
 	sleep(1.1)
-	fields, _, err = logger.ParseLogForFunc(logcopy, "lockWatcher", watcherLogRE, 3)
+	fields, _, err = logger.ParseLogForFunc(logcopy, "lockWatcher", watcherRank0LogRE, 3)
 	if err != nil {
 		t.Errorf("testMutex: could not find log entry for lockWatcher for testRWMutex1: %s", err.Error())
 	}
 
 	ptr, _ = strconv.ParseUint(fields["ptr"], 0, 64)
 	if uintptr(ptr) != uintptr(unsafe.Pointer(&testRWMutex1)) {
-		t.Errorf("testMutex: testRWMutex1 is not the longest held Mutex")
+		t.Errorf("testMutex: testRWMutex1 at %p is not the longest held Mutex", &testRWMutex1)
 	}
 	if fields["locker"] != "RLock()" {
 		t.Errorf("testMutex: locker '%s' for testRWMutex1 is not 'Rlock()': %s",
@@ -211,7 +269,7 @@ func testMutexes(t *testing.T, logcopy logger.LogTarget, confMap conf.ConfMap) {
 	}
 	ptr, _ = strconv.ParseUint(fields["ptr"], 0, 64)
 	if uintptr(ptr) != uintptr(unsafe.Pointer(&testRWMutex1)) {
-		t.Errorf("testMutex: testRWMutex1 was not the mutex unlocked")
+		t.Errorf("testMutex: testRWMutex1 at %p was not the mutex unlocked", &testRWMutex1)
 	}
 	if fields["type"] != "*trackedlock.RWMutex" {
 		t.Errorf("testMutex: testRWMutex1 type reported as '%s' instead of '*trackedlock.RWMutex'",
@@ -220,14 +278,14 @@ func testMutexes(t *testing.T, logcopy logger.LogTarget, confMap conf.ConfMap) {
 
 	// look for testRWMutex2 as the longest held RWMutex
 	sleep(1.0)
-	fields, _, err = logger.ParseLogForFunc(logcopy, "lockWatcher", watcherLogRE, 3)
+	fields, _, err = logger.ParseLogForFunc(logcopy, "lockWatcher", watcherRank0LogRE, 3)
 	if err != nil {
 		t.Errorf("testMutex: could not find log entry for lockWatcher for testRWMutex2: %s", err.Error())
 	}
 
 	ptr, _ = strconv.ParseUint(fields["ptr"], 0, 64)
 	if uintptr(ptr) != uintptr(unsafe.Pointer(&testRWMutex2)) {
-		t.Errorf("testMutex: testRWMutex2 is not the longest held Mutex")
+		t.Errorf("testMutex: testRWMutex2 at %p is not the longest held Mutex", &testRWMutex2)
 	}
 	if fields["locker"] != "Lock()" {
 		t.Errorf("testMutex: locker '%s' for testRWMutex2 is not 'Rlock()': %s",
@@ -248,7 +306,7 @@ func testMutexes(t *testing.T, logcopy logger.LogTarget, confMap conf.ConfMap) {
 
 	ptr, _ = strconv.ParseUint(fields["ptr"], 0, 64)
 	if uintptr(ptr) != uintptr(unsafe.Pointer(&testRWMutex2)) {
-		t.Errorf("testMutex: testRWMutex2 was not the mutex unlocked")
+		t.Errorf("testMutex: testRWMutex2 at %p was not the mutex unlocked", &testRWMutex2)
 	}
 	if fields["type"] != "*trackedlock.RWMutex" {
 		t.Errorf("testMutex: testRWMutex2 type reported as '%s' instead of '*trackedlock.RWMutex'",
@@ -472,14 +530,14 @@ func TestReload(t *testing.T) {
 
 	// mutex23 was the first lock acquired after enabling the lock watcher,
 	// so it should report it
-	fields, _, err := logger.ParseLogForFunc(logcopy, "lockWatcher", watcherLogRE, 3)
+	fields, _, err := logger.ParseLogForFunc(logcopy, "lockWatcher", watcherRank0LogRE, 10)
 	if err != nil {
 		t.Errorf("TestReload(): could not find log entry for lockWatcher: %s", err.Error())
 	}
 
 	ptr, _ := strconv.ParseUint(fields["ptr"], 0, 64)
 	if uintptr(ptr) != uintptr(unsafe.Pointer(&mutex23)) {
-		t.Errorf("TestReload(): mutex23 is not the longest held Mutex")
+		t.Errorf("TestReload(): mutex23 at %p is not the longest held Mutex", &mutex23)
 	}
 	if fields["type"] != "*trackedlock.Mutex" {
 		t.Errorf("TestReload(): mutex23 type reported as '%s' instead of '*trackedlock.Mutex'", fields["type"])
