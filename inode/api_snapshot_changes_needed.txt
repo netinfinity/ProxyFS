@@ -1,0 +1,49 @@
+This file will track the ongoing API & Internal changes that are, at the time, still needed
+===========================================================================================
+
+Specific API changes:
+
+Done?  API                        Modifications
+-----  -------------------------  ---------------------------------------------------------
+	   SnapShotDeleteByFSLayer()  Invalidate all inodeCache entries with that SnapShotID
+	   Access()                   Say "no" to W_OK requests
+                                  Map /.snapshot access checks to that of /
+	   Destroy()                  SnapShot inodes are only destroyed by deleting the SnapShot
+	   GetMetadata()              Return empty result for /.snapshot
+	   GetType()                  Return DirType for /.snapshot
+	   GetLinkCount()             Return 1 + # of SnapShots for /.snapshot
+	   SetLinkCount()             No write access to SnapShots
+	   SetCreationTime()          No write access to SnapShots
+	   SetModificationTime()      No write access to SnapShots
+	   SetAccessTime()            No write access to SnapShots
+	   SetPermMode()              No write access to SnapShots
+	   SetOwnerUserID()           No write access to SnapShots
+	   SetOwnerUserIDGroupID()    No write access to SnapShots
+	   SetOwnerGroupID()          No write access to SnapShots
+	   PutStream()                No write access to SnapShots
+	   DeleteStream()             No write access to SnapShots
+	   FetchLayoutReport()        Return empty result for /.snapshot
+	   Validate()                 Ensure it doesn't attempt to mark SnapShot Inode's dirty
+                                  Return success if validating /.snapshot
+	   Link()                     Fail if either dirInodeNumber    or targetInodeNumber have a non-zero SnapShot ID
+	   Unlink()                   Fail if        dirInodeNumber                         has  a non-zero SnapShot ID
+	   Move()                     Fail if either srcDirInodeNumber or dstDirInodeNumber have a non-zero SnapShot ID
+	   Lookup()                   Emulate search /.snapshot pseudo dir
+                                  Replace .. reference in SnapShot's root dir with reference to /.snapshot
+	   NumDirEntries()            Emulate count of /.snapshot pseudo dir
+	   ReadDir()                  Emulate readdir of /.snapshot pseudo dir
+                                  Replace .. reference in SnapShot's root dir with reference to /.snapshot
+	   Write()                    No write access to SnapShots
+	   Wrote()                    No write access to SnapShots
+	   SetSize()                  No write access to SnapShots
+	   Coalesce()                 Fail if containingDirInode has a non-zero SnapShot ID
+                                  Fail if containingDirInode is / and combinationName is .snapshot
+                                  Fail if any elements reference a ContainingDirectoryInodeNumber or ElementInodeNumber with a non-zero SnapShot ID
+
+Changes required in fetchOnDiskInode()/headhunter:
+
+Done?  Mofications
+-----  ------------------------------------------------------------------------------------------------------------
+       vS.headhunterVolumeHandle.GetInodeRec(uint64(inodeNumber)) call needs to consult appropriate SnapShot
+       Research why a fetched inode is initially marked Dirty?
+       Need to make it "easy" for SnapShotDeleteByFSLayer() to delete all inodeCache elements with that SnapShot ID
