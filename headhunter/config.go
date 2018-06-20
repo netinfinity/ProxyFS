@@ -46,9 +46,11 @@ type bPlusTreeWrapperStruct struct {
 }
 
 type volumeViewStruct struct {
-	volume                 *volumeStruct
-	nonce                  uint64 // supplies strict time-ordering of views regardless of timebase resets
-	snapShotID             uint64
+	volume     *volumeStruct
+	nonce      uint64 // supplies strict time-ordering of views regardless of timebase resets
+	snapShotID uint64 // in the range [1:2^SnapShotIDNumBits-2]
+	//                     ID == 0                     reserved for the "live" view
+	//                     ID == 2^SnapShotIDNumBits-1 reserved for the .snapshot subdir of a dir
 	snapShotTime           time.Time
 	snapShotName           string
 	inodeRecWrapper        *bPlusTreeWrapperStruct

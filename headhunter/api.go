@@ -19,6 +19,14 @@ const (
 	DeletedObjectsBPlusTree
 )
 
+type SnapShotIDType uint8
+
+const (
+	SnapShotIDTypeLive SnapShotIDType = iota
+	SnapShotIDTypeSnapShot
+	SnapShotIDTypeDotSnapShot
+)
+
 type SnapShotStruct struct {
 	ID   uint64
 	Time time.Time
@@ -55,6 +63,7 @@ type VolumeHandle interface {
 	SnapShotListByID(reversed bool) (list []SnapShotStruct)
 	SnapShotListByTime(reversed bool) (list []SnapShotStruct)
 	SnapShotListByName(reversed bool) (list []SnapShotStruct)
+	SnapShotIDAndTypeFromInodeNumber(inodeNumber uint64) (snapShotIDType SnapShotIDType, snapShotID uint64)
 }
 
 // FetchVolumeHandle is used to fetch a VolumeHandle to use when operating on a given volume's database

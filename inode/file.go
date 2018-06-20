@@ -9,6 +9,7 @@ import (
 	"github.com/swiftstack/sortedmap"
 
 	"github.com/swiftstack/ProxyFS/blunder"
+	"github.com/swiftstack/ProxyFS/headhunter"
 	"github.com/swiftstack/ProxyFS/logger"
 	"github.com/swiftstack/ProxyFS/stats"
 	"github.com/swiftstack/ProxyFS/utils"
@@ -583,6 +584,12 @@ func recordWrite(fileInode *inMemoryInodeStruct, fileOffset uint64, length uint6
 }
 
 func (vS *volumeStruct) Write(fileInodeNumber InodeNumber, offset uint64, buf []byte, profiler *utils.Profiler) (err error) {
+	snapShotIDType, _ := vS.headhunterVolumeHandle.SnapShotIDAndTypeFromInodeNumber(uint64(fileInodeNumber))
+	if headhunter.SnapShotIDTypeLive != snapShotIDType {
+		err = fmt.Errorf("Write() on non-LiveView fileInodeNumber not allowed")
+		return
+	}
+
 	fileInode, err := vS.fetchInodeType(fileInodeNumber, FileType)
 	if nil != err {
 		logger.ErrorWithError(err)
@@ -632,6 +639,12 @@ func (vS *volumeStruct) Write(fileInodeNumber InodeNumber, offset uint64, buf []
 }
 
 func (vS *volumeStruct) Wrote(fileInodeNumber InodeNumber, fileOffset uint64, objectPath string, objectOffset uint64, length uint64, patchOnly bool) (err error) {
+	snapShotIDType, _ := vS.headhunterVolumeHandle.SnapShotIDAndTypeFromInodeNumber(uint64(fileInodeNumber))
+	if headhunter.SnapShotIDTypeLive != snapShotIDType {
+		err = fmt.Errorf("Wrote() on non-LiveView fileInodeNumber not allowed")
+		return
+	}
+
 	fileInode, err := vS.fetchInodeType(fileInodeNumber, FileType)
 	if err != nil {
 		logger.ErrorWithError(err)
@@ -711,7 +724,11 @@ func (vS *volumeStruct) Wrote(fileInodeNumber InodeNumber, fileOffset uint64, ob
 }
 
 func (vS *volumeStruct) SetSize(fileInodeNumber InodeNumber, size uint64) (err error) {
-	// NOTE: Errors are logged by the caller
+	snapShotIDType, _ := vS.headhunterVolumeHandle.SnapShotIDAndTypeFromInodeNumber(uint64(fileInodeNumber))
+	if headhunter.SnapShotIDTypeLive != snapShotIDType {
+		err = fmt.Errorf("SetSize() on non-LiveView fileInodeNumber not allowed")
+		return
+	}
 
 	fileInode, err := vS.fetchInodeType(fileInodeNumber, FileType)
 	if nil != err {

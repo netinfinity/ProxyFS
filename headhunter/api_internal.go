@@ -1192,3 +1192,16 @@ func (volume *volumeStruct) SnapShotListByName(reversed bool) (list []SnapShotSt
 
 	return
 }
+
+func (volume *volumeStruct) SnapShotIDAndTypeFromInodeNumber(inodeNumber uint64) (snapShotIDType SnapShotIDType, snapShotID uint64) {
+	snapShotID = inodeNumber >> volume.snapShotIDShift
+	if 0 == snapShotID {
+		snapShotIDType = SnapShotIDTypeLive
+	} else if volume.dotSnapShotDirSnapShotID == snapShotID {
+		snapShotIDType = SnapShotIDTypeDotSnapShot
+	} else {
+		snapShotIDType = SnapShotIDTypeSnapShot
+	}
+
+	return
+}
