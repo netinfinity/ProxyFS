@@ -3,6 +3,13 @@ This file will track the ongoing API & Internal changes that are, at the time, s
 
 Specific API changes:
 
+It looks like the API changes you are describing are for a hypothetical "/.snapshot" directory.  Many, but
+not all of these changes apply to all files and directories on the snapshot.
+
+We need a notion of a Read-only file system.  Snapshots are read-only, but other file systems could become
+read-only (or disabled) as a result of storage updates or otherwise.  As far as Access() and other modifying
+operations are concerned, the correct error is EROFS (Read Only FileSystem), and not EPERM (Permissions failure).
+
 Done?  API                        Modifications
 -----  -------------------------  ---------------------------------------------------------
 	   SnapShotDeleteByFSLayer()  Invalidate all inodeCache entries with that SnapShotID
