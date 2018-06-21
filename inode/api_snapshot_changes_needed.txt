@@ -3,12 +3,23 @@ This file will track the ongoing API & Internal changes that are, at the time, s
 
 Specific API changes:
 
-It looks like the API changes you are describing are for a hypothetical "/.snapshot" directory.  Many, but
-not all of these changes apply to all files and directories on the snapshot.
+craigster> It looks like the API changes you are describing are for a hypothetical "/.snapshot" directory.
+craigster> Many, but not all of these changes apply to all files and directories on the snapshot.
 
-We need a notion of a Read-only file system.  Snapshots are read-only, but other file systems could become
-read-only (or disabled) as a result of storage updates or otherwise.  As far as Access() and other modifying
-operations are concerned, the correct error is EROFS (Read Only FileSystem), and not EPERM (Permissions failure).
+craigster> We need a notion of a Read-only file system.  Snapshots are read-only, but other file systems
+craigster> could become read-only (or disabled) as a result of storage updates or otherwise.  As far as
+craigster> Access() and other modifying operations are concerned, the correct error is EROFS (Read Only
+craigster> FileSystem), and not EPERM (Permissions failure).
+
+edmc> As discussed in channel, EROFS is a problem for us in the "all snapshots & live view in a single
+edmc> file system" case. EROFS might confuse the client into thinking the entire file system is, therefore,
+edmc> read-only.
+
+edmc> However, when mounting a filesystem's snapshot, it should be marked as read-only in the mount
+edmc> options. Unclear to me whether or not package fs (who receives this mount option) enforces that
+edmc> setting - it should - so perhaps all we need to do is ensure that option is provided (or, I guess,
+edmc> assume that it was) at time of mounting such that EROFS is generated for any modifying operations
+edmc> to a mounted snapshot.
 
 Done?  API                        Modifications
 -----  -------------------------  ---------------------------------------------------------
@@ -52,9 +63,16 @@ Done?  API                        Modifications
 
 Changes required in fetchOnDiskInode()/headhunter:
 
-Done?  Notifications
+Done?  Modifications
 -----  ------------------------------------------------------------------------------------------------------------
        vS.headhunterVolumeHandle.GetInodeRec(uint64(inodeNumber)) call needs to consult appropriate SnapShot
   Y    Research why a fetched inode is initially marked Dirty?
   -      In short, we see no reason for it... so making the change to no longer do it now.
        Need to make it "easy" for SnapShotDeleteByFSLayer() to delete all inodeCache elements with that SnapShot ID
+
+Changes required in inodeCache:
+
+Done?  Modifications
+-----  ------------------------------------------------------------------------------------------------------------
+       Convert inodeCache from a map[InodeNumber]*inMemoryInodeStruct to a sortedmap.LLRBTree
+       At SnapShot deletion time, delete all entries with the specified SnapShotID (nicely - don't hold lock long)
