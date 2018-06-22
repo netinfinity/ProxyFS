@@ -69,6 +69,7 @@ type volumeStruct struct {
 	defaultPhysicalContainerLayout *physicalContainerLayoutStruct
 	flowControl                    *flowControlStruct
 	headhunterVolumeHandle         headhunter.VolumeHandle
+	snapShotIDShift                uint64             //                        inodeNumber >> snapShotIDNumBits == snapShotID
 	inodeCache                     sortedmap.LLRBTree //                        key == InodeNumber; value == *inMemoryInodeStruct
 	inodeCacheLRUHead              *inMemoryInodeStruct
 	inodeCacheLRUTail              *inMemoryInodeStruct
@@ -387,6 +388,8 @@ func Up(confMap conf.ConfMap) (err error) {
 			if nil != err {
 				return
 			}
+
+			volume.snapShotIDShift = volume.headhunterVolumeHandle.SnapShotIDShift()
 
 			volume.headhunterVolumeHandle.RegisterForEvents(volume)
 		}
@@ -882,6 +885,8 @@ func ExpandAndResume(confMap conf.ConfMap) (err error) {
 			if nil != err {
 				return
 			}
+
+			volume.snapShotIDShift = volume.headhunterVolumeHandle.SnapShotIDShift()
 
 			volume.headhunterVolumeHandle.RegisterForEvents(volume)
 		}

@@ -63,6 +63,7 @@ type VolumeHandle interface {
 	SnapShotListByID(reversed bool) (list []SnapShotStruct)
 	SnapShotListByTime(reversed bool) (list []SnapShotStruct)
 	SnapShotListByName(reversed bool) (list []SnapShotStruct)
+	SnapShotIDShift() (snapShotIDShift uint64)
 	SnapShotIDAndTypeFromInodeNumber(inodeNumber uint64) (snapShotIDType SnapShotIDType, snapShotID uint64)
 }
 

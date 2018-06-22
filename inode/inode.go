@@ -358,7 +358,7 @@ func (vS *volumeStruct) inodeCacheDropWhileLocked(inode *inMemoryInodeStruct) (o
 		return
 	}
 
-	// TODO: Remove inode from inodeCacheLRU
+	// Remove inode from inodeCacheLRU
 
 	if inode == vS.inodeCacheLRUHead {
 		if inode == vS.inodeCacheLRUTail {

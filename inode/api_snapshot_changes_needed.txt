@@ -23,7 +23,7 @@ edmc> to a mounted snapshot.
 
 Done?  API                        Modifications
 -----  -------------------------  ---------------------------------------------------------
-	   SnapShotDeleteByFSLayer()  Invalidate all inodeCache entries with that SnapShotID
+  Y    SnapShotDeleteByFSLayer()  Invalidate all inodeCache entries with that SnapShotID
 	   Access()                   Say "no" to W_OK requests
                                   Map /.snapshot access checks to that of /
 	   Destroy()                  SnapShot inodes are only destroyed by deleting the SnapShot
